@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.env
+claude_pet_cfg.json
+*.code-workspace
+.DS_Store
+Thumbs.db
