@@ -66,8 +66,8 @@ def draw_star(canvas, cx, cy, P, frame, state, blinking,
                                 fill='white', outline='#CCC')
         canvas.create_polygon(cx - 5, by + 15, cx + 5, by + 15, cx, by + 23,
                               fill='white', outline='#CCC')
-        canvas.create_text(bx, by, text=bubble_text, fill='#333',
-                           font=('微软雅黑', 8), width=tw - 10)
+        canvas.create_text(bx, by, text=bubble_text, fill='#111',
+                           font=('Microsoft YaHei UI', 8), width=tw - 10)
 
     happy = state == 'happy'
     phase = int(frame * 0.3) % 2 if state == 'walk' else 0

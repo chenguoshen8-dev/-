@@ -1,12 +1,11 @@
 import tkinter as tk
 import random, sys, os, ctypes
 
-# singleton
 _mutex = ctypes.windll.kernel32.CreateMutexW(None, True, "Global\\ClaudeStarPet_Singleton")
 if ctypes.windll.kernel32.GetLastError() == 183:
     sys.exit(0)
 
-from config import load_cfg, save_cfg
+from config import load_cfg
 from pet_drawing import draw_star
 from conversation_store import ConversationStore
 from chat_window import ChatWindow
@@ -19,7 +18,6 @@ class StarPet:
         base_dir = os.path.dirname(os.path.abspath(__file__))
         self.store = ConversationStore(base_dir)
 
-        # migration: legacy history
         conv_id = self.store.get_active_id()
         if not conv_id or not self.store.get(conv_id):
             self.store.create(api_index=self.cfg.get('active_api', 0))
@@ -52,11 +50,14 @@ class StarPet:
         self.bubble_text = ""
         self.bubble_timer = 0
 
+        # double-click fix: use a timer to distinguish single vs double click
+        self._click_timer = None
+
         self.canvas.bind('<Button-1>', self._on_click)
         self.canvas.bind('<B1-Motion>', self._on_drag)
         self.canvas.bind('<ButtonRelease-1>', self._on_release)
         self.canvas.bind('<Button-3>', self._show_menu)
-        self.canvas.bind('<Double-Button-1>', lambda e: self._open_chat())
+        self.canvas.bind('<Double-Button-1>', self._on_double_click)
 
         self.menu = tk.Menu(self.root, tearoff=0)
         self.menu.add_command(label='💬 和我说话', command=self._open_chat)
@@ -69,16 +70,32 @@ class StarPet:
         self._update()
         self.root.mainloop()
 
-    # ── interaction ──────────────────────────────
+    # ── click handling ──────────────────────────
     def _on_click(self, e):
-        self.dragging = True
         self.drag_ox, self.drag_oy = e.x, e.y
         self._do_happy()
+        # Start a timer — if double-click doesn't cancel it within 300ms, start drag
+        if self._click_timer:
+            self.root.after_cancel(self._click_timer)
+        self._click_timer = self.root.after(300, self._start_drag)
+
+    def _on_double_click(self, e):
+        # Cancel the pending drag timer
+        if self._click_timer:
+            self.root.after_cancel(self._click_timer)
+            self._click_timer = None
+        self.dragging = False
+        self._open_chat()
+
+    def _start_drag(self):
+        self.dragging = True
+        self._click_timer = None
 
     def _on_drag(self, e):
         if self.dragging:
             self.x += e.x - self.drag_ox
             self.y += e.y - self.drag_oy
+            self.drag_ox, self.drag_oy = e.x, e.y
             self.root.geometry(f'{self.W}x{self.H}+{int(self.x)}+{int(self.y)}')
 
     def _on_release(self, e):
@@ -91,11 +108,22 @@ class StarPet:
         self.state = 'happy'
         self.happy_timer = 60
 
+    # ── windows ─────────────────────────────────
+    def _safe_win_exists(self, win):
+        """Check if a Toplevel window still exists without crashing."""
+        if win is None:
+            return False
+        try:
+            return win.winfo_exists()
+        except tk.TclError:
+            return False
+
     def _open_chat(self):
-        if self._chat_win and self._chat_win.winfo_exists():
+        if self._safe_win_exists(self._chat_win):
             self._chat_win.lift()
             self._chat_win.focus()
             return
+        self._chat_win = None
 
         def on_reply(text):
             self.bubble_text = text[:30] + ("..." if len(text) > 30 else "")
@@ -105,10 +133,11 @@ class StarPet:
         self._chat_win = ChatWindow(self.root, self.store, on_reply)
 
     def _open_settings(self):
-        if self._settings_win and self._settings_win.winfo_exists():
+        if self._safe_win_exists(self._settings_win):
             self._settings_win.lift()
             self._settings_win.focus()
             return
+        self._settings_win = None
 
         def on_save(new_cfg):
             self.cfg = new_cfg
@@ -151,17 +180,13 @@ class StarPet:
     def _draw(self):
         P = max(2, self.cfg.get('pet_size', 3))
         cx, cy = self.W // 2, self.H // 2 + 5
-
         draw_star(
-            canvas=self.canvas,
-            cx=cx, cy=cy, P=P,
-            frame=self.frame,
-            state=self.state,
-            blinking=self.blinking,
-            happy_timer=self.happy_timer,
-            bubble_text=self.bubble_text,
-            bubble_timer=self.bubble_timer,
+            canvas=self.canvas, cx=cx, cy=cy, P=P,
+            frame=self.frame, state=self.state,
+            blinking=self.blinking, happy_timer=self.happy_timer,
+            bubble_text=self.bubble_text, bubble_timer=self.bubble_timer,
         )
 
 
-StarPet()
+if __name__ == '__main__':
+    StarPet()
