@@ -5,6 +5,7 @@ __pycache__/
 venv/
 .env
 claude_pet_cfg.json
+conversations/
 *.code-workspace
 .DS_Store
 Thumbs.db
